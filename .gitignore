@@ -84,25 +84,13 @@ snapshots/
 # Build artifacts
 *.tgz
 
-# Implementation/Planning Documentation (keep only final docs)
-DEVOPS_POWERHOUSE.md
-ADVANCED_FEATURES_V3.md
-COMPLETE_SYSTEM_OVERVIEW.md
-IMPLEMENTATION_COMPLETE.md
-ENHANCEMENT_SUGGESTIONS.md
-IMPLEMENTATION_ROADMAP.md
-GITOPS_READY.md
-COMPLETE_AND_READY.md
-FEATURES_IMPLEMENTATION_STATUS.md
-PROJECT_SUMMARY.md
-QUICKSTART.md
-COMPLETE_FEATURE_LIST.md
-PHASE_1_COMPLETE.md
-FINAL_STATUS.md
+# Documentation spam - exclude ALL internal docs
+*.md
+!README.md
+!CONTRIBUTING.md
+!LICENSE
+!DEPLOYMENT_CHECKLIST.md
 
-# Keep only essential docs:
-# - README.md (main documentation)
-# - CONTRIBUTING.md (contribution guide)
-# - SETUP.md (setup instructions)
-# - LICENSE (license file)
-# - docs/ folder (technical documentation)
+# Keep docs/ folder for technical documentation
+!docs/
+!docs/**/*.md
