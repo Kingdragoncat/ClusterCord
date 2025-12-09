@@ -1,0 +1,671 @@
+// ClusterCord Prisma Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String            @id @default(uuid())
+  discordId           String            @unique
+  discordGuildId      String?
+  email               String
+  emailVerified       Boolean           @default(false)
+  serviceAccountName  String?
+  clusterId           String?
+  assignedNamespace   String?
+  trustedIps          String[]          @default([])
+  lastVerifiedAt      DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  cluster             Cluster?          @relation(fields: [clusterId], references: [id], onDelete: SetNull)
+  terminalSessions    TerminalSession[]
+  otpCodes            OTPCode[]
+  auditLogs           AuditLog[]
+  alertSubscriptions  AlertSubscription[]
+  helmReleases        HelmRelease[]
+
+  @@index([discordId])
+  @@index([email])
+  @@index([discordGuildId])
+}
+
+model Cluster {
+  id                  String            @id @default(uuid())
+  name                String
+  kubeconfigEncrypted String            @db.Text
+  ownerId             String
+  discordGuildId      String?
+  context             String?
+  endpoint            String?
+  sharedWithGuilds    String[]          @default([])
+  namespaceIsolation  Boolean           @default(true)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  users               User[]
+  terminalSessions    TerminalSession[]
+  helmReleases        HelmRelease[]
+  deployments         Deployment[]
+  policies            ClusterPolicy[]
+  snapshots           ClusterSnapshot[]
+
+  @@unique([ownerId, name])
+  @@index([ownerId])
+  @@index([discordGuildId])
+}
+
+model TerminalSession {
+  id                  String            @id @default(uuid())
+  userId              String
+  clusterId           String
+  podName             String
+  namespace           String
+  containerName       String?
+  shell               String            @default("/bin/sh")
+  tokenExpiry         DateTime
+  ipHash              String
+  status              SessionStatus     @default(ACTIVE)
+  createdAt           DateTime          @default(now())
+  endedAt             DateTime?
+  commandCount        Int               @default(0)
+  outputBytes         Int               @default(0)
+
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cluster             Cluster           @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([clusterId])
+  @@index([status])
+}
+
+enum SessionStatus {
+  PENDING_OTP
+  ACTIVE
+  PAUSED
+  ENDED
+  KILLED
+}
+
+model OTPCode {
+  id                  String            @id @default(uuid())
+  userId              String
+  code                String
+  codeHash            String
+  ipHash              String
+  expiresAt           DateTime
+  verified            Boolean           @default(false)
+  verifiedAt          DateTime?
+  createdAt           DateTime          @default(now())
+
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([codeHash])
+  @@index([expiresAt])
+}
+
+model AuditLog {
+  id                  String            @id @default(uuid())
+  userId              String
+  action              AuditAction
+  resourceType        String?
+  resourceId          String?
+  clusterId           String?
+  namespace           String?
+  podName             String?
+  command             String?           @db.Text
+  ipHash              String
+  metadata            Json?
+  createdAt           DateTime          @default(now())
+
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([clusterId])
+}
+
+enum AuditAction {
+  CLUSTER_ADD
+  CLUSTER_REMOVE
+  CLUSTER_LIST
+  CLUSTER_BOOTSTRAP
+  POD_LIST
+  POD_LOGS
+  POD_DESCRIBE
+  TERMINAL_START
+  TERMINAL_EXEC
+  TERMINAL_KILL
+  OTP_GENERATE
+  OTP_VERIFY
+  AUTH_AUTHORIZE
+  USER_REGISTER
+  HELM_INSTALL
+  HELM_UPGRADE
+  HELM_UNINSTALL
+  HELM_LIST
+  DEPLOYMENT_ROLLOUT
+  DEPLOYMENT_ROLLBACK
+  GITOPS_SYNC
+  YAML_APPLY
+  SECRET_CREATE
+  JOB_RUN
+  SNAPSHOT_CREATE
+  IMAGE_SCAN
+  POLICY_VIOLATION
+}
+
+model CommandBlacklist {
+  id                  String            @id @default(uuid())
+  pattern             String            @unique
+  isRegex             Boolean           @default(false)
+  description         String?
+  createdAt           DateTime          @default(now())
+
+  @@index([pattern])
+}
+
+// ⭐ New Feature Models
+
+model HelmRelease {
+  id                  String            @id @default(uuid())
+  name                String
+  chart               String
+  version             String
+  namespace           String
+  clusterId           String
+  userId              String
+  valuesYaml          String?           @db.Text
+  status              HelmStatus        @default(PENDING)
+  revision            Int               @default(1)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  cluster             Cluster           @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clusterId, namespace, name])
+  @@index([clusterId])
+  @@index([userId])
+  @@index([status])
+}
+
+enum HelmStatus {
+  PENDING
+  DEPLOYED
+  FAILED
+  UNINSTALLING
+  UNINSTALLED
+}
+
+model Deployment {
+  id                  String            @id @default(uuid())
+  name                String
+  namespace           String
+  clusterId           String
+  image               String?
+  previousImage       String?
+  replicas            Int               @default(1)
+  desiredReplicas     Int?
+  currentReplicas     Int?
+  availableReplicas   Int?
+  strategy            String?
+  status              DeploymentStatus  @default(DEPLOYING)
+  triggeredBy         String?
+  completedAt         DateTime?
+  lastRolloutAt       DateTime?
+  metadata            Json?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  cluster             Cluster           @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+
+  @@unique([clusterId, namespace, name])
+  @@index([clusterId])
+  @@index([status])
+}
+
+enum DeploymentStatus {
+  DEPLOYING
+  DEPLOYED
+  PROGRESSING
+  AVAILABLE
+  DEGRADED
+  FAILED
+}
+
+model AlertSubscription {
+  id                  String            @id @default(uuid())
+  userId              String
+  type                AlertType
+  clusterId           String?
+  namespace           String?
+  threshold           Int?
+  enabled             Boolean           @default(true)
+  lastTriggered       DateTime?
+  createdAt           DateTime          @default(now())
+
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([enabled])
+}
+
+enum AlertType {
+  POD_CRASH
+  HIGH_CPU
+  HIGH_MEMORY
+  IMAGE_PULL_ERROR
+  POD_EVICTED
+  NODE_NOT_READY
+  DEPLOYMENT_FAILED
+  HELM_FAILED
+  PERSISTENT_VOLUME_FAILED
+}
+
+model ClusterSnapshot {
+  id                  String            @id @default(uuid())
+  clusterId           String
+  data                Json
+  size                Int
+  description         String?
+  createdAt           DateTime          @default(now())
+
+  cluster             Cluster           @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+
+  @@index([clusterId])
+  @@index([createdAt])
+}
+
+model ClusterPolicy {
+  id                  String            @id @default(uuid())
+  clusterId           String
+  type                PolicyType
+  enabled             Boolean           @default(true)
+  severity            PolicySeverity    @default(MEDIUM)
+  config              Json?
+  lastViolation       DateTime?
+  violationCount      Int               @default(0)
+  createdAt           DateTime          @default(now())
+
+  cluster             Cluster           @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+
+  @@index([clusterId])
+  @@index([type])
+  @@index([enabled])
+}
+
+enum PolicyType {
+  REQUIRE_RESOURCE_LIMITS
+  REQUIRE_HEALTH_PROBES
+  PREVENT_PRIVILEGED_CONTAINERS
+  REQUIRE_READ_ONLY_FILESYSTEM
+  PREVENT_HOST_NETWORK
+  PREVENT_HOST_PID
+  PREVENT_HOST_IPC
+  REQUIRE_NON_ROOT_USER
+  PREVENT_LATEST_TAG
+  REQUIRE_IMAGE_PULL_POLICY
+}
+
+enum PolicySeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model ImageScan {
+  id                  String            @id @default(uuid())
+  image               String
+  tag                 String
+  clusterId           String?
+  vulnerabilities     Json
+  criticalCount       Int               @default(0)
+  highCount           Int               @default(0)
+  mediumCount         Int               @default(0)
+  lowCount            Int               @default(0)
+  scannedAt           DateTime          @default(now())
+
+  @@index([image])
+  @@index([scannedAt])
+}
+
+model GitOpsApp {
+  id                  String            @id @default(uuid())
+  name                String
+  type                GitOpsType        @default(ARGOCD)
+  clusterId           String
+  namespace           String
+  repoUrl             String
+  path                String?
+  targetRevision      String            @default("HEAD")
+  syncStatus          String?
+  healthStatus        String?
+  lastSyncedAt        DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@unique([clusterId, namespace, name])
+  @@index([clusterId])
+  @@index([type])
+}
+
+enum GitOpsType {
+  ARGOCD
+  FLUX
+}
+
+model Secret {
+  id                  String            @id @default(uuid())
+  name                String
+  namespace           String
+  clusterId           String
+  dataEncrypted       String            @db.Text
+  type                String            @default("Opaque")
+  lastAppliedAt       DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@unique([clusterId, namespace, name])
+  @@index([clusterId])
+}
+
+model Job {
+  id                  String            @id @default(uuid())
+  name                String
+  namespace           String
+  clusterId           String
+  image               String
+  command             String[]
+  args                String[]
+  status              JobStatus         @default(PENDING)
+  completedAt         DateTime?
+  logs                String?           @db.Text
+  exitCode            Int?
+  createdAt           DateTime          @default(now())
+
+  @@index([clusterId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  UNKNOWN
+}
+
+// ⭐ Extended Feature Models (v2.0)
+
+model TerminalRecording {
+  id                  String            @id @default(uuid())
+  sessionId           String
+  userId              String
+  clusterId           String
+  podName             String
+  namespace           String
+  recordingData       Json              @db.JsonB
+  duration            Int               // seconds
+  commandCount        Int
+  size                Int               // bytes
+  createdAt           DateTime          @default(now())
+  expiresAt           DateTime?
+
+  @@index([sessionId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model ClusterTemplate {
+  id                  String            @id @default(uuid())
+  name                String
+  category            TemplateCategory
+  description         String
+  icon                String?
+  manifests           Json              @db.JsonB
+  helmCharts          Json?             @db.JsonB
+  requirements        Json?
+  variables           Json?
+  popularity          Int               @default(0)
+  author              String?
+  verified            Boolean           @default(false)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  deployments         TemplateDeployment[]
+
+  @@index([category])
+  @@index([popularity])
+  @@index([verified])
+}
+
+enum TemplateCategory {
+  GAMING
+  MEDIA
+  DEVELOPMENT
+  MONITORING
+  DATABASES
+  MESSAGING
+  CICD
+  STORAGE
+  NETWORKING
+  SECURITY
+}
+
+model TemplateDeployment {
+  id                  String            @id @default(uuid())
+  templateId          String
+  clusterId           String
+  namespace           String
+  userId              String
+  status              DeploymentStatus
+  variables           Json?
+  createdAt           DateTime          @default(now())
+
+  template            ClusterTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@index([clusterId])
+  @@index([status])
+}
+
+model ChaosExperiment {
+  id                  String            @id @default(uuid())
+  name                String
+  type                ChaosType
+  clusterId           String
+  namespace           String
+  targetResource      String
+  config              Json
+  status              ExperimentStatus  @default(PENDING)
+  startedAt           DateTime?
+  completedAt         DateTime?
+  result              Json?
+  createdBy           String
+  createdAt           DateTime          @default(now())
+
+  @@index([clusterId])
+  @@index([status])
+  @@index([type])
+}
+
+enum ChaosType {
+  POD_KILL
+  POD_FAILURE
+  NETWORK_DELAY
+  NETWORK_LOSS
+  NETWORK_CORRUPTION
+  CPU_STRESS
+  MEMORY_STRESS
+  DISK_STRESS
+  NODE_DRAIN
+  NODE_RESTART
+}
+
+enum ExperimentStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model RBACGraph {
+  id                  String            @id @default(uuid())
+  clusterId           String
+  namespace           String?
+  graphData           Json              @db.JsonB
+  svgData             String?           @db.Text
+  generatedAt         DateTime          @default(now())
+  expiresAt           DateTime
+
+  @@index([clusterId])
+  @@index([generatedAt])
+}
+
+model SSOToken {
+  id                  String            @id @default(uuid())
+  userId              String
+  clusterId           String
+  token               String            @unique
+  kubeconfig          String            @db.Text
+  expiresAt           DateTime
+  createdAt           DateTime          @default(now())
+  lastUsedAt          DateTime?
+  revoked             Boolean           @default(false)
+
+  @@index([userId])
+  @@index([clusterId])
+  @@index([expiresAt])
+  @@index([token])
+}
+
+model Plugin {
+  id                  String            @id @default(uuid())
+  name                String            @unique
+  version             String
+  author              String
+  description         String
+  manifestPath        String
+  enabled             Boolean           @default(true)
+  config              Json?
+  dependencies        String[]          @default([])
+  permissions         String[]          @default([])
+  installedAt         DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  commands            PluginCommand[]
+  hooks               PluginHook[]
+
+  @@index([name])
+  @@index([enabled])
+}
+
+model PluginCommand {
+  id                  String            @id @default(uuid())
+  pluginId            String
+  name                String
+  description         String
+  options             Json?
+  handler             String
+
+  plugin              Plugin            @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+
+  @@unique([pluginId, name])
+  @@index([pluginId])
+}
+
+model PluginHook {
+  id                  String            @id @default(uuid())
+  pluginId            String
+  event               String
+  handler             String
+  priority            Int               @default(100)
+
+  plugin              Plugin            @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+
+  @@index([pluginId])
+  @@index([event])
+}
+
+model PluginAudit {
+  id                  String            @id @default(uuid())
+  pluginId            String
+  action              String
+  userId              String?
+  metadata            Json?
+  createdAt           DateTime          @default(now())
+
+  @@index([pluginId])
+  @@index([createdAt])
+}
+
+// ⭐ Advanced Security Features (v3.0)
+
+model ApprovalRequest {
+  id                  String            @id @default(uuid())
+  userId              String
+  command             String
+  args                Json
+  severity            ApprovalSeverity
+  status              ApprovalStatus    @default(PENDING)
+  requestedAt         DateTime          @default(now())
+  expiresAt           DateTime
+  approvedBy          String?
+  approvedAt          DateTime?
+  rejectedBy          String?
+  rejectedAt          DateTime?
+  rejectionReason     String?
+  cancelledAt         DateTime?
+  clusterId           String?
+  namespace           String?
+
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([severity])
+}
+
+enum ApprovalSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+model DeviceFingerprint {
+  id                  String            @id @default(uuid())
+  userId              String
+  fingerprint         String
+  ipHash              String
+  userAgent           String?
+  trusted             Boolean           @default(false)
+  firstSeen           DateTime          @default(now())
+  lastSeen            DateTime          @default(now())
+  verifiedAt          DateTime?
+  createdAt           DateTime          @default(now())
+
+  @@unique([userId, fingerprint])
+  @@index([userId])
+  @@index([fingerprint])
+  @@index([trusted])
+}

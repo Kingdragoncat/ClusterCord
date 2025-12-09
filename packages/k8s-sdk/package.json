@@ -1,0 +1,14 @@
+{
+  "name": "@clustercord/k8s-sdk",
+  "version": "0.1.0",
+  "description": "Kubernetes SDK wrapper for ClusterCord",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@kubernetes/client-node": "^0.20.0"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@clustercord/ui",
+  "version": "0.1.0",
+  "description": "Discord UI components and embed builders for ClusterCord",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1"
+  }
+}

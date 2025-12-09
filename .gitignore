@@ -1,0 +1,108 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.pnpm-store/
+.yarn/
+.npm/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Database
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+apps/backend/prisma/migrations/
+!apps/backend/prisma/migrations/.gitkeep
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+.nyc_output/
+
+# Kubernetes
+*.kubeconfig
+*-kubeconfig.yaml
+kubeconfig*
+admin.kubeconfig
+
+# Secrets & Keys
+secrets/
+*.pem
+*.key
+*.crt
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+
+# Docker
+docker-compose.override.yml
+
+# Recordings (can be large)
+recordings/
+*.cast
+
+# Snapshots
+snapshots/
+*.snapshot
+
+# Build artifacts
+*.tgz
+
+# Implementation/Planning Documentation (keep only final docs)
+DEVOPS_POWERHOUSE.md
+ADVANCED_FEATURES_V3.md
+COMPLETE_SYSTEM_OVERVIEW.md
+IMPLEMENTATION_COMPLETE.md
+ENHANCEMENT_SUGGESTIONS.md
+IMPLEMENTATION_ROADMAP.md
+GITOPS_READY.md
+COMPLETE_AND_READY.md
+FEATURES_IMPLEMENTATION_STATUS.md
+PROJECT_SUMMARY.md
+QUICKSTART.md
+COMPLETE_FEATURE_LIST.md
+PHASE_1_COMPLETE.md
+FINAL_STATUS.md
+
+# Keep only essential docs:
+# - README.md (main documentation)
+# - CONTRIBUTING.md (contribution guide)
+# - SETUP.md (setup instructions)
+# - LICENSE (license file)
+# - docs/ folder (technical documentation)

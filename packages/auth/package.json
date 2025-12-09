@@ -1,0 +1,14 @@
+{
+  "name": "@clustercord/auth",
+  "version": "0.1.0",
+  "description": "Authentication and security utilities for ClusterCord",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "crypto": "^1.0.1"
+  }
+}
